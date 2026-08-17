@@ -27,7 +27,7 @@ class ChatMessageController extends Controller
             'content' => $validated['message'],
         ]);
 
-        // Get Ollama response
+        // Get Ollama response asynchronously (don't block the request)
         try {
             $response = $this->getOllamaResponse($validated['message'], $chat);
 
@@ -54,52 +54,36 @@ class ChatMessageController extends Controller
             $userMessage->delete();
             return response()->json([
                 'success' => false,
-                'error' => 'Failed to get response: ' . $e->getMessage()
+                'error' => 'Failed to get response from Ollama: ' . $e->getMessage()
             ], 500);
         }
     }
 
     private function getOllamaResponse(string $message, Chat $chat): string
     {
-        $baseUrl = env('OLLAMA_API_URL') ?? ('http://' . env('OLLAMA_HOST', '127.0.0.1:11434'));
-
-        // Get conversation history
-        $messages = $chat->messages()
-            ->orderBy('created_at', 'asc')
-            ->get()
-            ->map(fn($msg) => [
-                'role' => $msg->role,
-                'content' => $msg->content,
-            ])
-            ->toArray();
-
-        // Build prompt with conversation history
-        $prompt = '';
-        foreach ($messages as $msg) {
-            if ($msg['role'] === 'user') {
-                $prompt .= "User: {$msg['content']}\n";
-            } else {
-                $prompt .= "Assistant: {$msg['content']}\n";
-            }
-        }
-        $prompt .= "User: {$message}\nAssistant:";
+        $baseUrl = env('OLLAMA_API_URL', 'http://ollama.railway.internal:11434');
+        $model = env('OLLAMA_MODEL', 'qwen3:4b');
 
         try {
-            $response = Http::timeout(120)
+            // Simple prompt without history for faster response
+            $response = Http::timeout(300)
+                ->connectTimeout(10)
                 ->post("{$baseUrl}/api/generate", [
-                    'model' => env('OLLAMA_MODEL', 'qwen3:4b'),
-                    'prompt' => $prompt,
+                    'model' => $model,
+                    'prompt' => $message,
                     'stream' => false,
                     'temperature' => 0.7,
-                    'top_p' => 0.9,
-                    'top_k' => 40,
                 ])
                 ->throw()
                 ->json();
 
-            return trim($response['response'] ?? '');
+            return trim($response['response'] ?? 'No response received');
+        } catch (\Illuminate\Http\Client\ConnectException $e) {
+            throw new \Exception('Cannot connect to Ollama at ' . $baseUrl . ': ' . $e->getMessage());
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            throw new \Exception('Ollama request failed: ' . $e->getMessage());
         } catch (\Exception $e) {
-            throw new \Exception('Ollama API error: ' . $e->getMessage());
+            throw new \Exception('Error: ' . $e->getMessage());
         }
     }
 
