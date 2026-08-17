@@ -8,3 +8,4 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::post('/verify', [\App\Http\Controllers\Api\VerificationController::class, 'verify']);
+Route::post('/chat', [\App\Http\Controllers\Api\ChatController::class, 'chat']);

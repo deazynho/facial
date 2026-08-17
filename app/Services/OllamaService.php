@@ -48,4 +48,31 @@ class OllamaService
             return null;
         }
     }
+    /**
+     * Sends a text prompt to the Ollama model for chat completion.
+     * 
+     * @param string $prompt The user's message.
+     * @return array|null
+     */
+    public function chat(string $prompt): ?array
+    {
+        try {
+            $response = Http::post("{$this->baseUrl}/api/generate", [
+                'model' => env('OLLAMA_MODEL', 'llama3'),
+                'prompt' => $prompt,
+                'stream' => false,
+            ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            Log::error('Ollama Chat API error', ['status' => $response->status(), 'body' => $response->body()]);
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Ollama Chat connection error', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
 }
