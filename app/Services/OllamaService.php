@@ -12,7 +12,7 @@ class OllamaService
     public function __construct()
     {
         // Default to localhost if not specified in env
-        $this->baseUrl = env('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+        $this->baseUrl = env('OLLAMA_API_URL', 'http://127.0.0.1:11434');
     }
 
     /**
